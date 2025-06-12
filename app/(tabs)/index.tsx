@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Dimensions,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -12,14 +13,20 @@ import {
   Text,
   View,
 } from "react-native";
-import { getWeatherByCity } from "../../services/weatherService";
+import {
+  getForecastByCity,
+  getWeatherByCity,
+} from "../../services/weatherService";
 import SearchBar from "./SearchBar";
+
+const { width, height } = Dimensions.get("window");
 
 const DAY_COLOR = "#87CEEB";
 const NIGHT_COLOR = "#1a237e";
 
 export default function Index() {
   const [weather, setWeather] = useState<any>(null);
+  const [forecast, setForecast] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [bgColor, setBgColor] = useState(DAY_COLOR);
@@ -27,7 +34,6 @@ export default function Index() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
 
-  // Associazione condizioni meteo -> file animazioni Lottie
   const weatherAnimations: Record<string, any> = {
     Clear: require("../../assets/animations/sole.json"),
     Clouds: require("../../assets/animations/nuvola.json"),
@@ -75,11 +81,11 @@ export default function Index() {
     setLoading(true);
     setErrorMsg("");
     try {
-      if (weather) {
-        await animateOut();
-      }
+      if (weather) await animateOut();
       const data = await getWeatherByCity(city);
+      const forecastData = await getForecastByCity(city);
       setWeather(data);
+      setForecast(forecastData);
       updateBackground(data);
       animateIn();
     } catch {
@@ -111,11 +117,21 @@ export default function Index() {
   });
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]}>
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
+      {weather?.weather[0].main &&
+        weatherAnimations[weather.weather[0].main] && (
+          <LottieView
+            source={weatherAnimations[weather.weather[0].main]}
+            autoPlay
+            loop
+            style={StyleSheet.absoluteFill}
+          />
+        )}
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1 }}
+        style={styles.overlay}
       >
         <ScrollView contentContainerStyle={styles.scroll}>
           <Text style={styles.title}>Meteo App</Text>
@@ -138,17 +154,6 @@ export default function Index() {
               <Text style={styles.city}>
                 {weather.name}, {weather.sys.country}
               </Text>
-
-              {weather.weather[0].main &&
-              weatherAnimations[weather.weather[0].main] ? (
-                <LottieView
-                  source={weatherAnimations[weather.weather[0].main]}
-                  autoPlay
-                  loop
-                  style={styles.lottie}
-                />
-              ) : null}
-
               <Text style={styles.temp}>{Math.round(weather.main.temp)}°C</Text>
               <Text style={styles.desc}>{weather.weather[0].description}</Text>
 
@@ -163,6 +168,17 @@ export default function Index() {
                   🔵 Pressione: {weather.main.pressure} hPa
                 </Text>
               </View>
+
+              {forecast.length > 0 && (
+                <View style={{ marginTop: 20 }}>
+                  <Text style={styles.forecastTitle}>Prossimi giorni:</Text>
+                  {forecast.map((item, idx) => (
+                    <Text key={idx} style={styles.extraItem}>
+                      📅 {item.date}: {item.temp}°C - {item.desc}
+                    </Text>
+                  ))}
+                </View>
+              )}
             </Animated.View>
           ) : null}
         </ScrollView>
@@ -173,6 +189,7 @@ export default function Index() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.2)" },
   scroll: { padding: 20, paddingTop: 40, flexGrow: 1 },
   title: {
     fontSize: 34,
@@ -220,4 +237,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   lottie: { width: 120, height: 120 },
+  forecastTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#fff",
+    marginBottom: 10,
+    textAlign: "center",
+  },
 });
